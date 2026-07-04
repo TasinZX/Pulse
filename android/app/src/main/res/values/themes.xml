@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base theme; the real UI colors come from Compose. This just sets the
+         splash/window background so there's no white flash before Compose loads. -->
+    <style name="Theme.Pulse" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ink</item>
+        <item name="android:statusBarColor">@color/ink</item>
+        <item name="android:navigationBarColor">@color/ink</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

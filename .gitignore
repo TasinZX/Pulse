@@ -1,0 +1,31 @@
+# ------- Android / Gradle -------
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+android/.cxx/
+**/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Local, machine-specific config (SDK path, keystores, secrets)
+android/local.properties
+*.keystore
+*.jks
+
+# ------- IDE -------
+.idea/
+*.iml
+.vscode/
+
+# ------- OS -------
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ------- Logs / temp -------
+*.log
+*.tmp
