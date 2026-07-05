@@ -26,6 +26,10 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
+# ------- Compiled Windows app (build it with pc-app/build.ps1) -------
+pc-app/*.exe
+pc-app/*.pdb
+
 # ------- Logs / temp -------
 *.log
 *.tmp

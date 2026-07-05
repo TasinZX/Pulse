@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.wolcompanion.app.ui
 
 import android.app.TimePickerDialog
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -51,10 +54,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.wolcompanion.app.data.AutoSleepConfig
@@ -195,7 +201,7 @@ private fun AutoSleepCard(cfg: AutoSleepConfig, onChange: (AutoSleepConfig) -> U
             Spacer(Modifier.height(12.dp))
             SectionLabel("Action")
             Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("sleep" to "Sleep", "lock" to "Lock").forEach { (v, label) ->
                     ChoiceChip(label, cfg.action == v) { onChange(cfg.copy(action = v)) }
                 }
@@ -203,7 +209,7 @@ private fun AutoSleepCard(cfg: AutoSleepConfig, onChange: (AutoSleepConfig) -> U
             Spacer(Modifier.height(12.dp))
             SectionLabel("Grace period")
             Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(2, 5, 10, 15).forEach { m ->
                     ChoiceChip("$m min", cfg.graceMinutes == m) { onChange(cfg.copy(graceMinutes = m)) }
                 }
@@ -394,10 +400,13 @@ private fun ScheduleEditorDialog(
                 Spacer(Modifier.height(12.dp))
                 SectionLabel("Days")
                 Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     DAY_LABELS.forEachIndexed { i, label ->
                         val d = i + 1
-                        ChoiceChip(label, days.contains(d)) {
+                        DayChip(label, days.contains(d), Modifier.weight(1f)) {
                             days = if (days.contains(d)) days - d else days + d
                         }
                     }
@@ -405,12 +414,8 @@ private fun ScheduleEditorDialog(
                 Spacer(Modifier.height(12.dp))
                 SectionLabel("Action")
                 Spacer(Modifier.height(6.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ACTIONS.chunked(3).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            row.forEach { (v, label) -> ChoiceChip(label, action == v) { action = v } }
-                        }
-                    }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ACTIONS.forEach { (v, label) -> ChoiceChip(label, action == v) { action = v } }
                 }
                 if (action == "wake_profile" && profiles.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
@@ -426,7 +431,7 @@ private fun ScheduleEditorDialog(
                     Spacer(Modifier.height(12.dp))
                     SectionLabel("Only if idle")
                     Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf(0, 15, 30, 60).forEach { m ->
                             ChoiceChip(if (m == 0) "Off" else "$m min", idleMin == m) { idleMin = m }
                         }
@@ -440,11 +445,31 @@ private fun ScheduleEditorDialog(
 // ---- Shared bits -----------------------------------------------------------
 
 @Composable
+private fun DayChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .height(40.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) Purple else Surface2)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = if (selected) TextPrimary else TextSecondary,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
     FilterChip(
         selected = selected,
         onClick = onClick,
-        label = { Text(label, fontWeight = FontWeight.Medium) },
+        label = { Text(label, fontWeight = FontWeight.Medium, maxLines = 1) },
         colors = FilterChipDefaults.filterChipColors(
             selectedContainerColor = Purple,
             selectedLabelColor = TextPrimary,

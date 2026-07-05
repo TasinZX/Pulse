@@ -17,12 +17,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import com.wolcompanion.app.service.ClipboardWatcher
 import com.wolcompanion.app.ui.PulseApp as PulseAppUi
 import com.wolcompanion.app.ui.theme.PulseTheme
 
 class MainActivity : ComponentActivity() {
 
     private var hasLocation by mutableStateOf(false)
+    private val clipboardWatcher by lazy { ClipboardWatcher(this) }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -46,6 +48,16 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        clipboardWatcher.start()
+    }
+
+    override fun onPause() {
+        clipboardWatcher.stop()
+        super.onPause()
     }
 
     private fun requestPermissions() {

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -101,17 +102,31 @@ fun RemoteDesktopScreen(host: String, pcName: String, onExit: () -> Unit) {
     var showKeys by remember { mutableStateOf(false) }
     val activeMods = remember { mutableStateListOf<Int>() }  // sticky Ctrl/Alt/Shift/Win
     var showHint by remember { mutableStateOf(true) }
+    var retry by remember { mutableStateOf(0) }
+    var trouble by remember { mutableStateOf(false) }
 
     DisposableEffect(client) { onDispose { client.close() } }
 
-    LaunchedEffect(host) {
+    // Show a helpful message if we can't reach the PC within a few seconds.
+    LaunchedEffect(host, retry) {
+        trouble = false
+        kotlinx.coroutines.delay(12000)
+        if (frame == null) trouble = true
+    }
+
+    LaunchedEffect(host, retry) {
         remote = client.fetchInfo()?.also { cursor = Offset(it.width / 2f, it.height / 2f) }
         while (isActive) {
             val bmp = client.fetchFrame()
             if (bmp != null) {
                 frame = bmp.asImageBitmap(); connected = true
                 if (remote == null) remote = client.fetchInfo()?.also { cursor = Offset(it.width / 2f, it.height / 2f) }
-            } else connected = false
+            } else {
+                // Back off on failure (PC asleep / agent starting) and keep retrying info.
+                connected = false
+                if (remote == null) remote = client.fetchInfo()?.also { cursor = Offset(it.width / 2f, it.height / 2f) }
+                kotlinx.coroutines.delay(600)
+            }
         }
     }
 
@@ -266,11 +281,26 @@ fun RemoteDesktopScreen(host: String, pcName: String, onExit: () -> Unit) {
                 }
             }
         } else {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(color = Purple, strokeWidth = 3.dp, modifier = Modifier.size(22.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Text("Connecting to $pcName…", color = TextSecondary, style = MaterialTheme.typography.titleMedium)
+            Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                if (trouble) {
+                    androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Can't reach $pcName", color = TextPrimary, style = MaterialTheme.typography.titleLarge)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Make sure the PC is awake and the Pulse agent is running (allowed in your antivirus).",
+                            color = TextSecondary, style = MaterialTheme.typography.bodyMedium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(20.dp))
+                        Text("Retry", color = Purple, style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.clickable { retry++ }.padding(8.dp))
+                    }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(color = Purple, strokeWidth = 3.dp, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text("Connecting to $pcName…", color = TextSecondary, style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             }
         }
