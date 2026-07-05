@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DesktopWindows
@@ -82,6 +83,7 @@ fun HomeScreen(
     onWake: () -> Unit,
     onRemoteDesktop: () -> Unit,
     onPowerOff: () -> Unit,
+    onOpenAutomation: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val onHome = wifi.connected && wifi.ssid.equals(settings.homeSsid, ignoreCase = true)
@@ -108,6 +110,9 @@ fun HomeScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            IconButton(onClick = onOpenAutomation) {
+                Icon(Icons.Rounded.AutoAwesome, "Automation", tint = TextSecondary)
             }
             if (settings.pc.ip.isNotBlank()) {
                 IconButton(onClick = { showPowerConfirm = true }) {

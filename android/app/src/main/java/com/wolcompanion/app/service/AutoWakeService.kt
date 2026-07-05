@@ -13,13 +13,19 @@ import androidx.core.app.NotificationCompat
 import com.wolcompanion.app.MainActivity
 import com.wolcompanion.app.PulseApp
 import com.wolcompanion.app.R
+import com.wolcompanion.app.automation.AutomationEngine
 import com.wolcompanion.app.automation.AutomationRegistry
 import com.wolcompanion.app.core.net.NetworkMonitor
 import com.wolcompanion.app.core.net.WifiState
+import com.wolcompanion.app.core.net.subnetOf
+import com.wolcompanion.app.core.remote.CommandClient
+import com.wolcompanion.app.data.AppSettings
+import com.wolcompanion.app.data.AutomationState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -34,6 +40,8 @@ class AutoWakeService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob())
     private var monitorJob: Job? = null
+    private var graceJob: Job? = null
+    private var wasHome = false
     private lateinit var monitor: NetworkMonitor
 
     override fun onCreate() {
@@ -49,6 +57,7 @@ class AutoWakeService : Service() {
 
     private suspend fun observe() {
         val repo = (application as PulseApp).settingsRepository
+        val autoRepo = (application as PulseApp).automationRepository
         val automations = AutomationRegistry.automations(onWake = { name ->
             notify("Waking $name", "You just got home — sending the wake signal.")
         })
@@ -60,8 +69,41 @@ class AutoWakeService : Service() {
             for (automation in automations) {
                 runCatching { automation.onWifiEvent(previous, state, settings) }
             }
+            runCatching { handleAutoSleep(state, settings, autoRepo.state.first()) }
             previous = state
         }
+    }
+
+    private fun isHome(state: WifiState, settings: AppSettings): Boolean {
+        if (!state.connected) return false
+        if (settings.homeSsid.isNotBlank() && state.ssid.equals(settings.homeSsid, ignoreCase = true)) return true
+        val homeSubnet = subnetOf(settings.pc.ip)
+        return homeSubnet != null && state.subnet == homeSubnet
+    }
+
+    /** Leave-home auto-sleep: after a grace period away, sleep/lock the PC if it's idle. */
+    private fun handleAutoSleep(state: WifiState, settings: AppSettings, auto: AutomationState) {
+        val cfg = auto.autoSleep
+        val nowHome = isHome(state, settings)
+        if (!cfg.enabled || !settings.pc.isConfigured) {
+            graceJob?.cancel(); graceJob = null; wasHome = nowHome; return
+        }
+        if (wasHome && !nowHome) {
+            graceJob?.cancel()
+            val name = settings.pc.name.ifBlank { "your PC" }
+            notify("Leaving home", "Pulse will ${cfg.action} $name in ${cfg.graceMinutes} min unless you return.")
+            graceJob = scope.launch {
+                delay(cfg.graceMinutes * 60_000L)
+                val status = CommandClient(settings.pc.ip).status()
+                if (status == null) return@launch // PC already off/asleep — nothing to do
+                if (status.idleSeconds / 60 < cfg.skipIfBusyMinutes) return@launch // in use
+                AutomationEngine.runAction(cfg.action, settings.pc, null)
+                notify("PC ${cfg.action}", "$name was ${cfg.action}ed after you left home.")
+            }
+        } else if (nowHome) {
+            graceJob?.cancel(); graceJob = null
+        }
+        wasHome = nowHome
     }
 
     private fun updateNotification(state: WifiState, homeSsid: String) {

@@ -15,6 +15,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val GUIDE = "guide"
     const val REMOTE = "remote"
+    const val AUTOMATION = "automation"
 }
 
 @Composable
@@ -58,8 +59,12 @@ fun PulseApp(
                 onWake = { vm.wakeNow() },
                 onRemoteDesktop = { nav.navigate(Routes.REMOTE) },
                 onPowerOff = { vm.powerOff() },
+                onOpenAutomation = { nav.navigate(Routes.AUTOMATION) },
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
             )
+        }
+        composable(Routes.AUTOMATION) {
+            AutomationScreen(onBack = { nav.popBackStack() })
         }
         composable(Routes.REMOTE) {
             RemoteDesktopScreen(

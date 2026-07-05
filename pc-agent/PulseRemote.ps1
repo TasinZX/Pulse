@@ -43,6 +43,40 @@ public class PulseWin32 {
 $SCREEN_W = [PulseWin32]::GetSystemMetrics(0)
 $SCREEN_H = [PulseWin32]::GetSystemMetrics(1)
 
+# Idle time (for auto-sleep / scheduled "if idle" conditions) and sleep support.
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class PulseIdle {
+    [StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
+    [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+    [DllImport("kernel32.dll")] public static extern uint GetTickCount();
+    public static uint IdleSeconds() {
+        LASTINPUTINFO lii = new LASTINPUTINFO();
+        lii.cbSize = (uint)Marshal.SizeOf(lii);
+        if (!GetLastInputInfo(ref lii)) return 0;
+        return (GetTickCount() - lii.dwTime) / 1000;
+    }
+}
+"@
+Add-Type -AssemblyName System.Windows.Forms
+
+# Executes a whitelisted control command from the phone. Returns optional text.
+function Invoke-Command2($cmd) {
+    switch ($cmd.cmd) {
+        'lock'     { Start-Process "rundll32.exe" -ArgumentList "user32.dll,LockWorkStation" -WindowStyle Hidden }
+        'sleep'    { [System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false) | Out-Null }
+        'reboot'   { Start-Process "shutdown.exe" -ArgumentList "/r","/t","3" -WindowStyle Hidden }
+        'shutdown' { Start-Process "shutdown.exe" -ArgumentList "/s","/t","3" -WindowStyle Hidden }
+        'clipset'  { if ($cmd.text) { Set-Clipboard -Value ([string]$cmd.text) } }
+        'run'      {
+            foreach ($e in $cmd.entries) {
+                try { Start-Process ([string]$e) } catch {}
+            }
+        }
+    }
+}
+
 # --- Screen capture ---------------------------------------------------------
 $jpegCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() |
     Where-Object { $_.FormatID -eq [System.Drawing.Imaging.ImageFormat]::Jpeg.Guid }
@@ -156,6 +190,26 @@ while ($listener.IsListening) {
                     Start-Process "shutdown.exe" -ArgumentList "/s", "/t", "3" -WindowStyle Hidden
                     $res.StatusCode = 200
                 }
+            }
+            '^/status$' {
+                $idle = [PulseIdle]::IdleSeconds()
+                $b = [System.Text.Encoding]::UTF8.GetBytes("{""awake"":true,""idleSeconds"":$idle}")
+                $res.ContentType = "application/json"
+                $res.OutputStream.Write($b, 0, $b.Length)
+            }
+            '^/clipboard$' {
+                $txt = ""
+                try { $txt = (Get-Clipboard -Raw) } catch {}
+                if ($null -eq $txt) { $txt = "" }
+                $b = [System.Text.Encoding]::UTF8.GetBytes([string]$txt)
+                $res.ContentType = "text/plain; charset=utf-8"
+                $res.OutputStream.Write($b, 0, $b.Length)
+            }
+            '^/command$' {
+                $reader = New-Object System.IO.StreamReader($req.InputStream, $req.ContentEncoding)
+                $body = $reader.ReadToEnd(); $reader.Close()
+                try { Invoke-Command2 ($body | ConvertFrom-Json) } catch {}
+                $res.StatusCode = 200
             }
             default { $res.StatusCode = 404 }
         }

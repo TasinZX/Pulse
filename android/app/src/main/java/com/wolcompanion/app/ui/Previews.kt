@@ -38,6 +38,7 @@ private fun HomeIdlePreview() {
             onWake = {},
             onRemoteDesktop = {},
             onPowerOff = {},
+            onOpenAutomation = {},
             onOpenSettings = {},
         )
     }
@@ -54,6 +55,7 @@ private fun HomeAwakePreview() {
             onWake = {},
             onRemoteDesktop = {},
             onPowerOff = {},
+            onOpenAutomation = {},
             onOpenSettings = {},
         )
     }

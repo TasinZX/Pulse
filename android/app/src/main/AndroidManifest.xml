@@ -19,6 +19,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Keep the auto-wake service alive against aggressive battery optimization -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Scheduled routines (time-based automations) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <application
         android:name=".PulseApp"
@@ -56,6 +59,23 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- Scheduled routines -->
+        <receiver
+            android:name=".service.ScheduleReceiver"
+            android:exported="false" />
+
+        <!-- Quick Settings tile: push phone clipboard to the PC -->
+        <service
+            android:name=".service.ClipboardTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_pulse_bolt"
+            android:label="Send to PC"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
 
     </application>
 </manifest>

@@ -1,6 +1,7 @@
 package com.wolcompanion.app
 
 import android.app.Application
+import com.wolcompanion.app.data.AutomationRepository
 import com.wolcompanion.app.data.SettingsRepository
 import com.wolcompanion.app.service.AutoWakeService
 import kotlinx.coroutines.CoroutineScope
@@ -15,9 +16,13 @@ class PulseApp : Application() {
     lateinit var settingsRepository: SettingsRepository
         private set
 
+    lateinit var automationRepository: AutomationRepository
+        private set
+
     override fun onCreate() {
         super.onCreate()
         settingsRepository = SettingsRepository(this)
+        automationRepository = AutomationRepository(this)
         AutoWakeService.createChannel(this)
 
         // Resume Automatic Mode if it was enabled but the process had been killed.
