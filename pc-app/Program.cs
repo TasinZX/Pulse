@@ -18,6 +18,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
@@ -42,64 +43,215 @@ namespace PulsePC
         static void Main()
         {
             Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
             Native.SetProcessDPIAware();
             Startup.EnsureAutoStart();
-            Application.Run(new TrayContext());
+            Application.Run(new PulseForm());
         }
     }
 
-    // ---- System tray host (also the STA invoke target for clipboard) --------
-    class TrayContext : ApplicationContext
+    // ---- Main window (branded) + tray + STA invoke target for clipboard ----
+    class PulseForm : Form
     {
-        private readonly NotifyIcon _icon;
-        private readonly Form _invokeTarget; // hidden, STA, for clipboard marshaling
-        private readonly HttpServer _server;
-        private readonly Beacon _beacon;
+        static readonly Color Ink = Color.FromArgb(0x0B, 0x0B, 0x0F);
+        static readonly Color Surface1 = Color.FromArgb(0x14, 0x14, 0x19);
+        static readonly Color Stroke = Color.FromArgb(0x26, 0x26, 0x30);
+        static readonly Color Purple = Color.FromArgb(0x8B, 0x5C, 0xF6);
+        static readonly Color PurpleBright = Color.FromArgb(0xA7, 0x8B, 0xFA);
+        static readonly Color PurpleDeep = Color.FromArgb(0x6D, 0x28, 0xD9);
+        static readonly Color TextPrimary = Color.FromArgb(0xF4, 0xF4, 0xF6);
+        static readonly Color TextSecondary = Color.FromArgb(0x9A, 0x9A, 0xA6);
+        static readonly Color GreenC = Color.FromArgb(0x34, 0xD3, 0x99);
 
-        public TrayContext()
+        static readonly Font FTitle = new Font("Segoe UI", 26f, FontStyle.Bold);
+        static readonly Font FSub = new Font("Segoe UI", 11f);
+        static readonly Font FStatus = new Font("Segoe UI", 12f, FontStyle.Bold);
+        static readonly Font FKey = new Font("Segoe UI", 9.5f);
+        static readonly Font FVal = new Font("Segoe UI", 10.5f, FontStyle.Bold);
+        static readonly Font FSmall = new Font("Segoe UI", 9f);
+
+        private NotifyIcon _tray;
+        private bool _reallyExit;
+        private HttpServer _server;
+        private Beacon _beacon;
+        private LanInfo _info;
+
+        public PulseForm()
         {
-            _invokeTarget = new Form();
-            _invokeTarget.ShowInTaskbar = false;
-            _invokeTarget.WindowState = FormWindowState.Minimized;
-            _invokeTarget.FormBorderStyle = FormBorderStyle.FixedToolWindow;
-            _invokeTarget.Load += delegate { _invokeTarget.Size = new Size(0, 0); _invokeTarget.Hide(); };
-            _invokeTarget.CreateControl();
-            var forceHandle = _invokeTarget.Handle; // create the window handle so Invoke works
-            GC.KeepAlive(forceHandle);
+            _info = LanInfo.Primary();
+            Text = "Pulse PC";
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MaximizeBox = false;
+            StartPosition = FormStartPosition.CenterScreen;
+            ClientSize = new Size(440, 560);
+            BackColor = Ink;
+            ForeColor = TextPrimary;
+            Font = new Font("Segoe UI", 9f);
+            DoubleBuffered = true;
+            Icon = BoltIcon(32);
 
-            Clip.Init(_invokeTarget);
+            var btnHide = MakeButton("Minimize to tray", Purple, TextPrimary);
+            btnHide.SetBounds(40, 456, 360, 46);
+            btnHide.Click += delegate { HideToTray(); };
+            Controls.Add(btnHide);
 
+            var btnQuit = MakeButton("Quit Pulse PC", Surface1, TextSecondary);
+            btnQuit.SetBounds(40, 510, 360, 38);
+            btnQuit.FlatAppearance.BorderColor = Stroke;
+            btnQuit.FlatAppearance.BorderSize = 1;
+            btnQuit.Click += delegate { _reallyExit = true; Close(); };
+            Controls.Add(btnQuit);
+
+            _tray = new NotifyIcon();
+            _tray.Icon = BoltIcon(16);
+            _tray.Text = "Pulse PC — running";
+            _tray.Visible = true;
             var menu = new ContextMenuStrip();
-            var info = LanInfo.Primary();
-            menu.Items.Add(new ToolStripMenuItem("Pulse PC — running") { Enabled = false });
-            if (info != null)
-                menu.Items.Add(new ToolStripMenuItem(info.Name + "  •  " + info.Ip) { Enabled = false });
-            menu.Items.Add(new ToolStripSeparator());
+            var open = new ToolStripMenuItem("Open Pulse PC");
+            open.Click += delegate { ShowFromTray(); };
             var quit = new ToolStripMenuItem("Quit");
-            quit.Click += delegate { ExitThread(); };
-            menu.Items.Add(quit);
+            quit.Click += delegate { _reallyExit = true; Close(); };
+            menu.Items.Add(open); menu.Items.Add(new ToolStripSeparator()); menu.Items.Add(quit);
+            _tray.ContextMenuStrip = menu;
+            _tray.DoubleClick += delegate { ShowFromTray(); };
 
-            _icon = new NotifyIcon();
-            _icon.Icon = System.Drawing.SystemIcons.Application;
-            _icon.Text = "Pulse PC";
-            _icon.Visible = true;
-            _icon.ContextMenuStrip = menu;
-
-            _server = new HttpServer(Program.HttpPort);
-            _server.Start();
-            _beacon = new Beacon(Program.BeaconPort);
-            _beacon.Start();
+            Clip.Init(this);
+            _server = new HttpServer(Program.HttpPort); _server.Start();
+            _beacon = new Beacon(Program.BeaconPort); _beacon.Start();
         }
 
-        protected override void Dispose(bool disposing)
+        protected override void OnHandleCreated(EventArgs e)
         {
-            if (disposing)
+            base.OnHandleCreated(e);
+            try { int on = 1; DwmSetWindowAttribute(Handle, 20, ref on, 4); } catch { }
+        }
+        [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
+
+        private void HideToTray()
+        {
+            Hide();
+            try { _tray.ShowBalloonTip(1500, "Pulse PC", "Still running in the tray.", ToolTipIcon.None); } catch { }
+        }
+        private void ShowFromTray() { Show(); WindowState = FormWindowState.Normal; Activate(); }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (!_reallyExit && e.CloseReason == CloseReason.UserClosing)
             {
-                try { _beacon.Stop(); } catch { }
-                try { _server.Stop(); } catch { }
-                if (_icon != null) { _icon.Visible = false; _icon.Dispose(); }
+                e.Cancel = true; HideToTray(); return;
             }
-            base.Dispose(disposing);
+            try { _beacon.Stop(); } catch { }
+            try { _server.Stop(); } catch { }
+            if (_tray != null) { _tray.Visible = false; _tray.Dispose(); }
+            base.OnFormClosing(e);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+            int cx = ClientSize.Width / 2;
+            int r = 44, ly = 44;
+
+            var circle = new Rectangle(cx - r, ly, r * 2, r * 2);
+            using (var lg = new LinearGradientBrush(circle, PurpleBright, PurpleDeep, 90f))
+                g.FillEllipse(lg, circle);
+            DrawBolt(g, cx, ly + r, 46f, Color.White);
+
+            DrawCenter(g, "Pulse", FTitle, TextPrimary, cx, ly + 2 * r + 12);
+            DrawCenter(g, "PC companion", FSub, TextSecondary, cx, ly + 2 * r + 56);
+
+            var card = new Rectangle(40, 252, ClientSize.Width - 80, 178);
+            FillRounded(g, card, 18, Surface1, Stroke);
+            int lx = card.Left + 22, ty = card.Top + 20;
+
+            using (var gb = new SolidBrush(GreenC)) g.FillEllipse(gb, lx, ty + 4, 10, 10);
+            DrawLeft(g, "Running", FStatus, TextPrimary, lx + 18, ty - 2);
+            ty += 36;
+            if (_info != null)
+            {
+                DrawKV(g, "This PC", _info.Name, lx, ty); ty += 28;
+                DrawKV(g, "Address", _info.Ip, lx, ty); ty += 28;
+                DrawKV(g, "MAC", _info.Mac, lx, ty);
+            }
+            DrawLeft(g, "Discovery · Remote Desktop · Commands · Clipboard", FSmall, TextSecondary, lx, card.Bottom - 26);
+        }
+
+        private void DrawKV(Graphics g, string k, string v, int x, int y)
+        {
+            DrawLeft(g, k, FKey, TextSecondary, x, y + 1);
+            DrawLeft(g, v, FVal, TextPrimary, x + 100, y);
+        }
+
+        static void DrawCenter(Graphics g, string t, Font f, Color c, float cx, float y)
+        {
+            var sf = new StringFormat(); sf.Alignment = StringAlignment.Center;
+            using (var b = new SolidBrush(c)) g.DrawString(t, f, b, cx, y, sf);
+        }
+        static void DrawLeft(Graphics g, string t, Font f, Color c, float x, float y)
+        {
+            using (var b = new SolidBrush(c)) g.DrawString(t, f, b, x, y);
+        }
+
+        static PointF[] BoltPoints(float cx, float cy, float size)
+        {
+            float s = size / 24f;
+            var raw = new PointF[] {
+                new PointF(13,2), new PointF(4.5f,13.5f), new PointF(11,13.5f),
+                new PointF(10,22), new PointF(19.5f,10.5f), new PointF(13,10.5f)
+            };
+            var pts = new PointF[raw.Length];
+            for (int i = 0; i < raw.Length; i++)
+                pts[i] = new PointF(cx + (raw[i].X - 12f) * s, cy + (raw[i].Y - 12f) * s);
+            return pts;
+        }
+        static void DrawBolt(Graphics g, float cx, float cy, float size, Color color)
+        {
+            using (var b = new SolidBrush(color)) g.FillPolygon(b, BoltPoints(cx, cy, size));
+        }
+        static Icon BoltIcon(int size)
+        {
+            var bmp = new Bitmap(size, size);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.Clear(Color.Transparent);
+                DrawBolt(g, size / 2f, size / 2f, size, PurpleBright);
+            }
+            return Icon.FromHandle(bmp.GetHicon());
+        }
+
+        static GraphicsPath RoundPath(Rectangle r, int radius)
+        {
+            int d = radius * 2;
+            var path = new GraphicsPath();
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+        static void FillRounded(Graphics g, Rectangle r, int radius, Color fill, Color border)
+        {
+            using (var path = RoundPath(r, radius))
+            {
+                using (var b = new SolidBrush(fill)) g.FillPath(b, path);
+                using (var p = new Pen(border, 1)) g.DrawPath(p, path);
+            }
+        }
+        static Button MakeButton(string text, Color back, Color fore)
+        {
+            var b = new Button();
+            b.Text = text; b.FlatStyle = FlatStyle.Flat;
+            b.BackColor = back; b.ForeColor = fore;
+            b.FlatAppearance.BorderSize = 0;
+            b.Font = new Font("Segoe UI", 10.5f, FontStyle.Bold);
+            b.Cursor = Cursors.Hand;
+            return b;
         }
     }
 
