@@ -33,15 +33,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.DesktopWindows
+import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +66,7 @@ import com.wolcompanion.app.ui.theme.Purple
 import com.wolcompanion.app.ui.theme.PurpleBright
 import com.wolcompanion.app.ui.theme.PurpleDeep
 import com.wolcompanion.app.ui.theme.PurpleGlow
+import com.wolcompanion.app.ui.theme.Stroke
 import com.wolcompanion.app.ui.theme.SuccessGreen
 import com.wolcompanion.app.ui.theme.Surface2
 import com.wolcompanion.app.ui.theme.TextMuted
@@ -71,9 +80,12 @@ fun HomeScreen(
     wifi: WifiState,
     wakeStatus: WakeStatus,
     onWake: () -> Unit,
+    onRemoteDesktop: () -> Unit,
+    onPowerOff: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val onHome = wifi.connected && wifi.ssid.equals(settings.homeSsid, ignoreCase = true)
+    var showPowerConfirm by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -97,9 +109,38 @@ fun HomeScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            if (settings.pc.ip.isNotBlank()) {
+                IconButton(onClick = { showPowerConfirm = true }) {
+                    Icon(Icons.Rounded.PowerSettingsNew, "Power off PC", tint = TextSecondary)
+                }
+            }
             IconButton(onClick = onOpenSettings) {
                 Icon(Icons.Rounded.Settings, "Settings", tint = TextSecondary)
             }
+        }
+
+        if (showPowerConfirm) {
+            AlertDialog(
+                onDismissRequest = { showPowerConfirm = false },
+                confirmButton = {
+                    TextButton(onClick = { showPowerConfirm = false; onPowerOff() }) {
+                        Text("Shut down", color = ErrorRed)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPowerConfirm = false }) {
+                        Text("Cancel", color = TextSecondary)
+                    }
+                },
+                title = { Text("Shut down ${settings.pc.name.ifBlank { "PC" }}?", color = TextPrimary) },
+                text = {
+                    Text(
+                        "This safely powers off your PC. Unsaved work may prompt to be saved first.",
+                        color = TextSecondary,
+                    )
+                },
+                containerColor = Surface2,
+            )
         }
 
         Spacer(Modifier.height(24.dp))
@@ -118,6 +159,14 @@ fun HomeScreen(
         StatusCaption(wakeStatus)
 
         Spacer(Modifier.weight(1f))
+
+        // Remote Desktop — full control of the PC (via RDP)
+        RemoteDesktopButton(
+            enabled = settings.pc.ip.isNotBlank(),
+            onClick = onRemoteDesktop,
+        )
+
+        Spacer(Modifier.height(12.dp))
 
         // Mode summary cards
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -229,6 +278,36 @@ private fun NetworkPill(wifi: WifiState, onHome: Boolean, homeSsid: String) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+private fun RemoteDesktopButton(enabled: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(16.dp),
+        color = Surface2,
+        border = BorderStroke(1.dp, if (enabled) Purple.copy(alpha = 0.45f) else Stroke),
+        modifier = Modifier.fillMaxWidth().height(56.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Rounded.DesktopWindows,
+                contentDescription = null,
+                tint = if (enabled) PurpleBright else TextMuted,
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                "Remote Desktop",
+                color = if (enabled) TextPrimary else TextMuted,
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
     }
 }
 

@@ -36,6 +36,8 @@ private fun HomeIdlePreview() {
             wifi = WifiState(connected = true, ssid = "MyHomeWiFi"),
             wakeStatus = WakeStatus.Idle,
             onWake = {},
+            onRemoteDesktop = {},
+            onPowerOff = {},
             onOpenSettings = {},
         )
     }
@@ -50,6 +52,8 @@ private fun HomeAwakePreview() {
             wifi = WifiState(connected = true, ssid = "MyHomeWiFi"),
             wakeStatus = WakeStatus.Awake("Battlestation"),
             onWake = {},
+            onRemoteDesktop = {},
+            onPowerOff = {},
             onOpenSettings = {},
         )
     }

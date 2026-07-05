@@ -86,8 +86,10 @@ fun SettingsScreen(
                 Column(Modifier.weight(1f)) {
                     Text("Automatic mode", color = TextPrimary, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        if (settings.homeSsid.isBlank()) "Set a home Wi-Fi first"
-                        else "Wake when joining “${settings.homeSsid}”",
+                        when {
+                            settings.homeSsid.isNotBlank() -> "Wakes ${settings.pc.name.ifBlank { "your PC" }} when you reach “${settings.homeSsid}”"
+                            else -> "Wakes ${settings.pc.name.ifBlank { "your PC" }} when you reach your home network"
+                        },
                         color = TextSecondary, style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -98,13 +100,14 @@ fun SettingsScreen(
                     colors = SwitchDefaults.colors(checkedTrackColor = Purple),
                 )
             }
-            if (!hasLocationPermission) {
+            if (settings.autoWakeEnabled) {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Android needs Location permission to read the Wi-Fi name in the background.",
+                    "For this to fire reliably with the screen off, keep Pulse exempt from battery " +
+                        "optimization (you'll be prompted). Location is optional — Pulse also recognizes " +
+                        "home by your Wi-Fi's network address.",
                     color = TextSecondary, style = MaterialTheme.typography.bodyMedium,
                 )
-                TextButton(onClick = onRequestLocation) { Text("Grant location", color = Purple) }
             }
         }
 

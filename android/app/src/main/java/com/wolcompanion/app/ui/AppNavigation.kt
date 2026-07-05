@@ -2,7 +2,6 @@ package com.wolcompanion.app.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -15,6 +14,7 @@ object Routes {
     const val SETUP = "setup"
     const val SETTINGS = "settings"
     const val GUIDE = "guide"
+    const val REMOTE = "remote"
 }
 
 @Composable
@@ -22,6 +22,7 @@ fun PulseApp(
     vm: WolViewModel = viewModel(),
     hasLocationPermission: Boolean,
     onRequestLocation: () -> Unit,
+    onEnableAutoReliability: () -> Unit = {},
 ) {
     val nav = rememberNavController()
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -55,7 +56,16 @@ fun PulseApp(
                 wifi = wifi,
                 wakeStatus = wakeStatus,
                 onWake = { vm.wakeNow() },
+                onRemoteDesktop = { nav.navigate(Routes.REMOTE) },
+                onPowerOff = { vm.powerOff() },
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+            )
+        }
+        composable(Routes.REMOTE) {
+            RemoteDesktopScreen(
+                host = settings.pc.ip,
+                pcName = settings.pc.name.ifBlank { "PC" },
+                onExit = { nav.popBackStack() },
             )
         }
         composable(Routes.SETUP) {
@@ -80,9 +90,14 @@ fun PulseApp(
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 settings = settings,
-                canEnableAuto = settings.homeSsid.isNotBlank() && settings.pc.isConfigured && hasLocationPermission,
+                // Subnet matching needs only a paired PC (with an IP) — no SSID/location required.
+                canEnableAuto = settings.pc.isConfigured &&
+                    (settings.pc.ip.isNotBlank() || settings.homeSsid.isNotBlank()),
                 hasLocationPermission = hasLocationPermission,
-                onToggleAuto = { vm.setAutoWake(it) },
+                onToggleAuto = { enabled ->
+                    vm.setAutoWake(enabled)
+                    if (enabled) onEnableAutoReliability()
+                },
                 onRequestLocation = onRequestLocation,
                 onTestWake = { vm.testWake() },
                 onEditPc = { nav.navigate(Routes.SETUP) },

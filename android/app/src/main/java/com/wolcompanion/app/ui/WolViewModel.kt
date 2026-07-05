@@ -131,6 +131,27 @@ class WolViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearStatus() { _wakeStatus.value = WakeStatus.Idle }
 
+    /** One-tap remote shutdown via the PC agent. */
+    fun powerOff() {
+        val pc = settings.value.pc
+        if (pc.ip.isBlank()) {
+            _wakeStatus.value = WakeStatus.Message("No PC address to shut down", isError = true)
+            return
+        }
+        viewModelScope.launch {
+            _wakeStatus.value = WakeStatus.Message("Shutting down ${pc.name.ifBlank { "your PC" }}…")
+            val ok = com.wolcompanion.app.core.remote.PcPower.shutdown(pc.ip)
+            _wakeStatus.value = if (ok) {
+                WakeStatus.Message("Shutdown command sent to ${pc.name.ifBlank { "your PC" }}")
+            } else {
+                WakeStatus.Message(
+                    "Couldn't reach ${pc.name.ifBlank { "your PC" }}. Enable Remote on the PC.",
+                    isError = true,
+                )
+            }
+        }
+    }
+
     // ---- Settings ----------------------------------------------------------
 
     fun savePc(pc: PcDevice) = viewModelScope.launch { repo.savePc(pc) }

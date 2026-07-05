@@ -27,11 +27,13 @@ Zero-config Wake-on-LAN over your local network, wrapped in a premium dark UI.
 
 - **🔍 Zero-config discovery** — install a tiny agent on your PC and it shows up in the app by name. No typing MAC addresses, IPs, or broadcast addresses.
 - **👆 Manual wake** — one tap on the wake orb powers on your PC from anywhere on your Wi-Fi.
-- **🏠 Automatic mode** — the app wakes your PC the moment your phone joins your home Wi-Fi, in the background, with no interaction.
+- **🏠 Automatic mode** — wakes your PC the moment your phone joins your home network, in the background, no interaction. Recognizes home by **network subnet** (works with the screen off, no location needed) and fires a retry burst so arrival-wake is reliable.
+- **🖥️ Built-in Remote Desktop** — view and fully control your PC from the app with a **laptop-touchpad** control model: relative pointer, tap / two-finger-tap (right-click), hold-drag, two-finger scroll, pinch-zoom, on-screen keyboard with Ctrl/Alt/Shift/Win. Its own screen-capture + input agent — no third-party app.
+- **⏻ One-tap Power Off** — safely shut down the PC remotely with a confirmation dialog.
 - **✅ Wake verification** — after a wake, the app checks whether the PC actually came online and tells you.
-- **🧠 Reliability built-in** — skips the wake if the PC is already on, debounces brief Wi-Fi drops, retries the magic packet, and survives app-close and reboots.
+- **🧠 Reliability built-in** — skips the wake if the PC is already on, debounces brief Wi-Fi drops, survives app-close and reboots, and requests a battery-optimization exemption so the watcher isn't killed.
 - **🎨 Premium UI** — dark theme, purple accent, rounded cards, spring animations. Built with Jetpack Compose.
-- **🧩 Modular by design** — a pluggable automation layer makes it easy to add shutdown, notifications, etc. later.
+- **🧩 Modular by design** — a pluggable automation layer makes it easy to add more automations later.
 
 ---
 
@@ -46,9 +48,11 @@ Pulse/
 │       ├── automation/      # pluggable Automation interface + auto-wake
 │       ├── service/         # foreground service + boot receiver (Automatic mode)
 │       └── ui/              # Compose screens, theme, ViewModel
-├── pc-agent/                # LAN discovery beacon (Windows PowerShell)
-│   ├── PulseAgent.ps1        #   broadcasts this PC's identity so the app can find it
-│   └── Install-PulseAgent.ps1#   auto-start at logon (no admin)
+├── pc-agent/                # Windows PowerShell agents
+│   ├── PulseAgent.ps1        #   LAN discovery beacon (broadcasts this PC's identity)
+│   ├── Install-PulseAgent.ps1#   auto-start the beacon at logon (no admin)
+│   ├── PulseRemote.ps1       #   remote-desktop server: screen capture + input + /shutdown
+│   └── Enable-RemoteControl.ps1 # one-time setup for remote desktop (admin: firewall + urlacl)
 ├── pc-setup/                # One-time Wake-on-LAN setup helper (Windows PowerShell)
 │   └── Setup-WoL.ps1
 ├── docs/screenshots/
